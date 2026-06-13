@@ -24,9 +24,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
   useEffect(() => {
     fetchAllData();
     const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE || "http://localhost:5000";
-    const newSocket = io(socketUrl, {
-      transports: ["websocket"],
-    });
+    const newSocket = io(socketUrl);
     setSocket(newSocket);
     return () => newSocket.disconnect();
   }, []);

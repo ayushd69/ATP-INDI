@@ -40,9 +40,7 @@ export default function App() {
 
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE || "http://localhost:5000";
-    const socket = io(socketUrl, {
-      transports: ["websocket"],
-    });
+    const socket = io(socketUrl);
 
     const updateStockState = (payload) => {
       setStocks((currentStocks) => {

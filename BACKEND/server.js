@@ -104,7 +104,7 @@ mongoose
                             volume: s.volume ?? 0,
                         },
                     },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
                 );
             }
             console.log("Live stockData synced to MongoDB.");

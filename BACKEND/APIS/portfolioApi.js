@@ -34,7 +34,7 @@ portfolioApp.post("/", async (req, res) => {
 
 portfolioApp.put("/:id", async (req, res) => {
     try {
-        const item = await Portfolio.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const item = await Portfolio.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         if (!item) return res.status(404).json({ message: "Portfolio item not found." });
         res.json({ message: "Portfolio updated", item });
     } catch (error) {

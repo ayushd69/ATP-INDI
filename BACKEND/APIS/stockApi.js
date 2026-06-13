@@ -35,7 +35,7 @@ stockApp.post("/", async (req, res) => {
 
 stockApp.put("/:id", async (req, res) => {
     try {
-        const stock = await Stock.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const stock = await Stock.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         if (!stock) return res.status(404).json({ message: "Stock not found." });
         res.json({ message: "Stock updated", stock });
     } catch (error) {

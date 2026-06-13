@@ -90,7 +90,7 @@ orderApp.post("/", async (req, res) => {
 
 orderApp.put("/:id", async (req, res) => {
     try {
-        const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const order = await Order.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         if (!order) return res.status(404).json({ message: "Order not found." });
         res.json({ message: "Order updated", order });
     } catch (error) {

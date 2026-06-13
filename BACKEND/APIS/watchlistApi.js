@@ -40,7 +40,7 @@ watchlistApp.post("/", async (req, res) => {
 
 watchlistApp.put("/:id", async (req, res) => {
     try {
-        const watchlist = await Watchlist.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const watchlist = await Watchlist.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         if (!watchlist) return res.status(404).json({ message: "Watchlist not found." });
         res.json({ message: "Watchlist updated", watchlist });
     } catch (error) {

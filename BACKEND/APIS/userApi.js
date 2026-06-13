@@ -45,7 +45,7 @@ userApp.put("/:id", async (req, res) => {
         if (updates.password) {
             updates.password = await bcrypt.hash(updates.password, 10);
         }
-        const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
+        const user = await User.findByIdAndUpdate(req.params.id, updates, { returnDocument: "after" });
         if (!user) return res.status(404).json({ message: "User not found." });
         res.json({ message: "User updated", user: sanitizeUser(user) });
     } catch (error) {

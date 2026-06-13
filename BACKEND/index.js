@@ -33,7 +33,7 @@ app.use(express.json());
 
 // Ensure database connection before handling requests
 app.use(async (req, res, next) => {
-    if (mongoose.connection.readyState >= 1) {
+    if (mongoose.connection.readyState === 1) {
         return next();
     }
     try {

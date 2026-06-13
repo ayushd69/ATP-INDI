@@ -10,7 +10,11 @@ const orderApp = express.Router();
 
 orderApp.get("/", async (req, res) => {
     try {
-        const orders = await Order.find().populate("userId stockId");
+        const query = {};
+        if (req.query.userId) {
+            query.userId = req.query.userId;
+        }
+        const orders = await Order.find(query).populate("userId stockId");
         res.json(orders);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -30,8 +34,10 @@ orderApp.get("/:id", async (req, res) => {
 orderApp.post("/", async (req, res) => {
     try {
         const { userId, stockId, orderType, quantity, price } = req.body;
+        const qty = Number(quantity);
+        const pricePerShare = Number(price);
 
-        if (!userId || !stockId || !orderType || !quantity || !price) {
+        if (!userId || !stockId || !orderType || !qty || !pricePerShare) {
             return res.status(400).json({ message: "userId, stockId, orderType, quantity, and price are required." });
         }
 
@@ -45,7 +51,7 @@ orderApp.post("/", async (req, res) => {
             return res.status(404).json({ message: "Stock not found." });
         }
 
-        const totalCost = price * quantity;
+        const totalCost = pricePerShare * qty;
         const userBalance = Number(user.walletBalance ?? 0);
 
         // Validate order based on type
@@ -55,7 +61,7 @@ orderApp.post("/", async (req, res) => {
 
         if (orderType === "SELL") {
             const portfolio = await Portfolio.findOne({ userId, stockId });
-            if (!portfolio || portfolio.quantity < quantity) {
+            if (!portfolio || portfolio.quantity < qty) {
                 return res.status(400).json({ message: "Not enough stock holdings to sell." });
             }
         }
@@ -67,8 +73,8 @@ orderApp.post("/", async (req, res) => {
             userId,
             stockId,
             orderType,
-            quantity,
-            price,
+            quantity: qty,
+            price: pricePerShare,
             marketOrder: isMarketBuy,
             status: isMarketBuy ? "COMPLETED" : "PENDING",
         });

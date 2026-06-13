@@ -61,6 +61,7 @@ export const orders = {
       body: JSON.stringify(payload),
     }),
   list: () => request("/api/orders"),
+  byUser: (userId) => request(`/api/orders?userId=${userId}`),
 };
 
 export const transactions = {

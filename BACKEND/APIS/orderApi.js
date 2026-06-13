@@ -3,6 +3,7 @@ import Order from "../models/Order.js";
 import Portfolio from "../models/Portfolio.js";
 import User from "../models/User.js";
 import Stock from "../models/Stock.js";
+import Transaction from "../models/Transaction.js";
 import OrderMatchingEngine from "../matchingEngine.js";
 
 const orderApp = express.Router();

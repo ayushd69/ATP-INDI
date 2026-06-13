@@ -1,47 +1,48 @@
 import { useEffect, useState } from "react";
-import { transactions } from "../services/api.js";
-import { getOrders } from "./sampleStockData.js";
-import { formatINR, toINR } from "../utils/currency.js";
+import { orders, transactions } from "../services/api.js";
+import { formatINR } from "../utils/currency.js";
 
-export default function Transactions() {
-    const [items, setItems] = useState([]);
-    const [localOrders, setLocalOrders] = useState([]);
+export default function Transactions({ userId }) {
+    const [pendingOrders, setPendingOrders] = useState([]);
+    const [tradeHistory, setTradeHistory] = useState([]);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let active = true;
 
-        // Get current user from localStorage (same logic as Auth)
-        const storedUser = localStorage.getItem("investpro-user");
-        const userId = storedUser ? JSON.parse(storedUser)._id : null;
-
-        const fetchTransactions = async () => {
-            try {
-                if (!userId) {
-                    throw new Error("User not authenticated");
-                }
-                const data = await transactions.byUser(userId);
+        const fetchData = async () => {
+            if (!userId) {
                 if (!active) return;
-                setItems(data);
+                setError("User not authenticated");
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const [ordersData, transactionsData] = await Promise.all([
+                    orders.byUser(userId),
+                    transactions.byUser(userId),
+                ]);
+
+                if (!active) return;
+                setPendingOrders(Array.isArray(ordersData) ? ordersData.filter((o) => o.status === "PENDING") : []);
+                setTradeHistory(Array.isArray(transactionsData) ? transactionsData : []);
             } catch (err) {
                 if (!active) return;
                 setError(err.message || "Failed to load transactions");
             } finally {
                 if (!active) return;
-                if (userId) {
-                    setLocalOrders(getOrders(userId));
-                }
                 setLoading(false);
             }
         };
 
-        fetchTransactions();
+        fetchData();
 
         return () => {
             active = false;
         };
-    }, []);
+    }, [userId]);
 
     if (loading) {
         return <div className="p-6 text-slate-300">Loading transactions...</div>;
@@ -51,32 +52,26 @@ export default function Transactions() {
         return <div className="p-6 text-rose-300">{error}</div>;
     }
 
-    const allTransactions = [
-        ...items.map(t => ({
-            ...t,
-            source: "backend",
-            symbol: t.stockId?.symbol,
-            status: t.status || t.orderStatus || "PENDING"
-        })),
-        ...localOrders.map(o => ({
-            ...o,
-            source: "local",
-            symbol: o.stock?.symbol,
-            _id: o.id,
-            status: o.status || "PENDING"
-        }))
-    ];
+    const getTradeType = (transaction) => {
+        const currentUserId = userId?.toString();
+        const buyerId = transaction.buyerId?._id?.toString?.() || transaction.buyerId?.toString?.();
+        return buyerId === currentUserId ? "BUY" : "SELL";
+    };
+
+    const getTradeDate = (item) => {
+        const date = item.timestamp || item.createdAt;
+        return date ? new Date(date).toLocaleDateString() : "-";
+    };
 
     return (
-        <section className="space-y-4 p-6">
+        <section className="space-y-6 p-6">
             <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6">
-                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Transactions & Orders</h2>
-                {allTransactions.length === 0 && (
+                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Pending Orders</h2>
+                {pendingOrders.length === 0 ? (
                     <div className="rounded-2xl bg-slate-900 p-4 text-sm text-slate-300">
-                        <p>No transactions yet. Start trading to see your orders here!</p>
+                        <p>No pending orders currently.</p>
                     </div>
-                )}
-                {allTransactions.length > 0 && (
+                ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
                             <thead>
@@ -91,36 +86,65 @@ export default function Transactions() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
-                                {allTransactions.map((item) => (
-                                    <tr key={item._id} className={`hover:bg-slate-900/50 ${item.source === "local" ? "bg-slate-900/30" : ""}`}>
-                                        <td className="px-3 py-3">{item.symbol || "Unknown"}</td>
+                                {pendingOrders.map((order) => (
+                                    <tr key={order._id} className="hover:bg-slate-900/50">
+                                        <td className="px-3 py-3">{order.stockId?.symbol || "Unknown"}</td>
                                         <td className="px-3 py-3">
-                                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.orderType === "BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>
-                                                {item.orderType || "BUY"}
+                                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${order.orderType === "BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>
+                                                {order.orderType}
                                             </span>
                                         </td>
-                                        <td className="px-3 py-3">{item.quantity}</td>
-                                        <td className="px-3 py-3">{formatINR(item.price)}</td>
-                                        <td className="px-3 py-3 font-semibold">{formatINR(item.price * item.quantity)}</td>
+                                        <td className="px-3 py-3">{order.quantity}</td>
+                                        <td className="px-3 py-3">{formatINR(order.price)}</td>
+                                        <td className="px-3 py-3 font-semibold">{formatINR(order.price * order.quantity)}</td>
                                         <td className="px-3 py-3">
-                                            {(() => {
-                                                const statusLabel = item.status || item.orderStatus || "PENDING";
-                                                const statusClass = statusLabel === "COMPLETED"
-                                                    ? "bg-emerald-500/20 text-emerald-300"
-                                                    : statusLabel === "CANCELLED"
-                                                        ? "bg-rose-500/20 text-rose-300"
-                                                        : "bg-yellow-500/20 text-yellow-300";
+                                            <span className="rounded-full bg-yellow-500/20 px-2 py-1 text-xs font-semibold text-yellow-300">
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-3 text-xs text-slate-400">{getTradeDate(order)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
-                                                return (
-                                                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass}`}>
-                                                        {statusLabel}
-                                                    </span>
-                                                );
-                                            })()}
+            <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Trade History</h2>
+                {tradeHistory.length === 0 ? (
+                    <div className="rounded-2xl bg-slate-900 p-4 text-sm text-slate-300">
+                        <p>No completed trades yet.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+                            <thead>
+                                <tr>
+                                    <th className="px-3 py-3">Stock</th>
+                                    <th className="px-3 py-3">Type</th>
+                                    <th className="px-3 py-3">Quantity</th>
+                                    <th className="px-3 py-3">Price</th>
+                                    <th className="px-3 py-3">Total</th>
+                                    <th className="px-3 py-3">Role</th>
+                                    <th className="px-3 py-3">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {tradeHistory.map((tx) => (
+                                    <tr key={tx._id} className="hover:bg-slate-900/50">
+                                        <td className="px-3 py-3">{tx.stockId?.symbol || "Unknown"}</td>
+                                        <td className="px-3 py-3">
+                                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getTradeType(tx) === "BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>
+                                                {getTradeType(tx)}
+                                            </span>
                                         </td>
-                                        <td className="px-3 py-3 text-xs text-slate-400">
-                                            {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : new Date(item.createdAt).toLocaleDateString()}
-                                        </td>
+                                        <td className="px-3 py-3">{tx.quantity}</td>
+                                        <td className="px-3 py-3">{formatINR(tx.price)}</td>
+                                        <td className="px-3 py-3 font-semibold">{formatINR(tx.totalAmount)}</td>
+                                        <td className="px-3 py-3 text-xs text-slate-300">{getTradeType(tx) === "BUY" ? "Bought" : "Sold"}</td>
+                                        <td className="px-3 py-3 text-xs text-slate-400">{getTradeDate(tx)}</td>
                                     </tr>
                                 ))}
                             </tbody>

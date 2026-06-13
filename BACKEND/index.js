@@ -31,6 +31,22 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Ensure database connection before handling requests
+app.use(async (req, res, next) => {
+    if (mongoose.connection.readyState >= 1) {
+        return next();
+    }
+    try {
+        const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/ind_pro";
+        await mongoose.connect(MONGODB_URI);
+        console.log("Database connected dynamically in middleware");
+        next();
+    } catch (err) {
+        console.error("Database connection failed in middleware:", err);
+        res.status(500).json({ error: "Database connection failed" });
+    }
+});
+
 app.use("/api/auth", authApi);
 app.use("/api/users", userApi);
 app.use("/api/stocks", stockApi);

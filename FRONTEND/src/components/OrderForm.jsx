@@ -61,14 +61,27 @@ export default function OrderForm({ userId, user, onUpdateUser }) {
             if (response.user && onUpdateUser) {
                 onUpdateUser(response.user);
             }
+
+            const isMatched = response.matchesFound > 0;
+            const orderStatus = response.orderStatus || (response.fullyMatched ? "COMPLETED" : "PENDING");
             if (form.orderType === "SELL") {
                 const profitLoss = response.realizedPnL ?? 0;
                 const profitLossLabel = profitLoss >= 0 ? "gain" : "loss";
-                setFeedback(
-                    `Order sold successfully. ${profitLossLabel}: ${formatINR(Math.abs(profitLoss))}.`
-                );
+                if (orderStatus === "COMPLETED") {
+                    setFeedback(`Order sold successfully. ${profitLossLabel}: ${formatINR(Math.abs(profitLoss))}.`);
+                } else if (isMatched) {
+                    setFeedback(`Sell order partially matched. Remaining quantity is pending until a matching buy order is available.`);
+                } else {
+                    setFeedback(`Sell order placed successfully and is pending until a matching buy order is available.`);
+                }
             } else {
-                setFeedback(`Order ${form.orderType.toLowerCase()} submitted successfully.`);
+                if (orderStatus === "COMPLETED") {
+                    setFeedback(`Order purchased successfully.`);
+                } else if (isMatched) {
+                    setFeedback(`Buy order partially matched. Remaining quantity is pending until a matching sell order is available.`);
+                } else {
+                    setFeedback(`Buy order placed successfully and is pending until a matching sell order is available.`);
+                }
             }
             setForm((current) => ({ ...current, quantity: 1 }));
         } catch (err) {

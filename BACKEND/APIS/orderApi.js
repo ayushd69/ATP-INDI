@@ -80,6 +80,8 @@ orderApp.post("/", async (req, res) => {
             message: "Order placed",
             order: updatedOrder,
             matchesFound: matchResult.matched,
+            fullyMatched: updatedOrder.status === "COMPLETED",
+            orderStatus: updatedOrder.status,
             trades: matchResult.trades || [],
             user: updatedUser,
         });

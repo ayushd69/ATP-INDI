@@ -52,20 +52,22 @@ export default function Transactions() {
         ...items.map(t => ({
             ...t,
             source: "backend",
-            symbol: t.stockId?.symbol
+            symbol: t.stockId?.symbol,
+            status: t.status || t.orderStatus || "PENDING"
         })),
         ...localOrders.map(o => ({
             ...o,
             source: "local",
             symbol: o.stock?.symbol,
-            _id: o.id
+            _id: o.id,
+            status: o.status || "PENDING"
         }))
     ];
 
     return (
         <section className="space-y-4 p-6">
             <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6">
-                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Transactions</h2>
+                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Transactions & Orders</h2>
                 {allTransactions.length === 0 && (
                     <div className="rounded-2xl bg-slate-900 p-4 text-sm text-slate-300">
                         <p>No transactions yet. Start trading to see your orders here!</p>
@@ -81,6 +83,7 @@ export default function Transactions() {
                                     <th className="px-3 py-3">Quantity</th>
                                     <th className="px-3 py-3">Price</th>
                                     <th className="px-3 py-3">Total</th>
+                                    <th className="px-3 py-3">Status</th>
                                     <th className="px-3 py-3">Date</th>
                                 </tr>
                             </thead>
@@ -96,6 +99,22 @@ export default function Transactions() {
                                         <td className="px-3 py-3">{item.quantity}</td>
                                         <td className="px-3 py-3">{formatINR(item.price)}</td>
                                         <td className="px-3 py-3 font-semibold">{formatINR(item.price * item.quantity)}</td>
+                                        <td className="px-3 py-3">
+                                            {(() => {
+                                                const statusLabel = item.status || item.orderStatus || "PENDING";
+                                                const statusClass = statusLabel === "COMPLETED"
+                                                    ? "bg-emerald-500/20 text-emerald-300"
+                                                    : statusLabel === "CANCELLED"
+                                                        ? "bg-rose-500/20 text-rose-300"
+                                                        : "bg-yellow-500/20 text-yellow-300";
+
+                                                return (
+                                                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass}`}>
+                                                        {statusLabel}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
                                         <td className="px-3 py-3 text-xs text-slate-400">
                                             {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : new Date(item.createdAt).toLocaleDateString()}
                                         </td>

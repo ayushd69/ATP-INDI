@@ -55,8 +55,6 @@ class OrderMatchingEngine {
 
                         if (trade) {
                             trades.push(trade);
-                            buyOrder.quantity -= matchQuantity;
-                            sellOrder.quantity -= matchQuantity;
                             console.log(
                                 `[Matching Engine] Executed trade: BUY order ${buyOrder._id} matched SELL order ${sellOrder._id} qty=${matchQuantity} price=${tradePrice}`
                             );

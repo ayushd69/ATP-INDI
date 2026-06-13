@@ -2,6 +2,10 @@
 
 A full-stack stock trading simulator with live market updates, order matching, portfolio management, and admin controls.
 
+
+## admine mail:admine@gmail.com
+## pass:admine123
+
 ## Project Overview
 
 This repository contains two main applications:

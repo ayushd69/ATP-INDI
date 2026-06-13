@@ -67,7 +67,26 @@ export default function StockList({ userId, user, onUpdateUser, stocks = [], onS
       if (response.user && onUpdateUser) {
         onUpdateUser(response.user);
       }
-      setFeedback(`✓ ${orderType === "BUY" ? "Purchased" : "Sold"} ${qty} ${stock.symbol} shares at ${formatINR(stock.currentPrice)}`);
+
+      const isMatched = response.matchesFound > 0;
+      const orderStatus = response.orderStatus || (response.fullyMatched ? "COMPLETED" : "PENDING");
+      if (orderType === "BUY") {
+        if (orderStatus === "COMPLETED") {
+          setFeedback(`✓ Purchased ${qty} ${stock.symbol} shares at ${formatINR(stock.currentPrice)}`);
+        } else if (isMatched) {
+          setFeedback(`Partially purchased ${qty} ${stock.symbol} shares. Remaining quantity is pending until a matching sell order is available.`);
+        } else {
+          setFeedback(`Buy order placed for ${qty} ${stock.symbol} shares. Waiting for a matching sell order.`);
+        }
+      } else {
+        if (orderStatus === "COMPLETED") {
+          setFeedback(`✓ Sold ${qty} ${stock.symbol} shares at ${formatINR(stock.currentPrice)}`);
+        } else if (isMatched) {
+          setFeedback(`Partially sold ${qty} ${stock.symbol} shares. Remaining quantity is pending until a matching buy order is available.`);
+        } else {
+          setFeedback(`Sell order placed for ${qty} ${stock.symbol} shares. Waiting for a matching buy order.`);
+        }
+      }
       closeOrderModal();
     } catch (err) {
       setFeedback(err.message || "Failed to place order.");
@@ -144,7 +163,6 @@ export default function StockList({ userId, user, onUpdateUser, stocks = [], onS
                       Trade
                     </button>
                   </div>
-
                 </article>
               );
             })}

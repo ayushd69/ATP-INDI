@@ -5,7 +5,14 @@ const transactionApp = express.Router();
 
 transactionApp.get("/", async (req, res) => {
     try {
-        const transactions = await Transaction.find().populate("buyerId sellerId stockId");
+        const query = {};
+        if (req.query.userId) {
+            query.$or = [
+                { buyerId: req.query.userId },
+                { sellerId: req.query.userId },
+            ];
+        }
+        const transactions = await Transaction.find(query).populate("buyerId sellerId stockId");
         res.json(transactions);
     } catch (error) {
         res.status(500).json({ message: error.message });

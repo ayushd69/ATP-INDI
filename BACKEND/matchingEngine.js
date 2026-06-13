@@ -10,56 +10,65 @@ class OrderMatchingEngine {
      */
     static async matchOrders(stockId) {
         try {
-            // Get all pending buy orders, sorted by price (descending) and time (ascending)
             const buyOrders = await Order.find({
                 stockId,
                 orderType: "BUY",
                 status: "PENDING",
-            })
-                .populate("userId")
-                .sort({ price: -1, createdAt: 1 });
+            }).sort({ price: -1, createdAt: 1 });
 
-            // Get all pending sell orders, sorted by price (ascending) and time (ascending)
             const sellOrders = await Order.find({
                 stockId,
                 orderType: "SELL",
                 status: "PENDING",
-            })
-                .populate("userId")
-                .sort({ price: 1, createdAt: 1 });
+            }).sort({ price: 1, createdAt: 1 });
 
             if (buyOrders.length === 0 || sellOrders.length === 0) {
                 return { matched: 0, trades: [] };
             }
 
             const trades = [];
+            let buyIndex = 0;
+            let sellIndex = 0;
 
-            // Try to match buy and sell orders
-            for (const buyOrder of buyOrders) {
-                if (buyOrder.quantity <= 0) continue;
+            while (buyIndex < buyOrders.length && sellIndex < sellOrders.length) {
+                const buyOrder = buyOrders[buyIndex];
+                const sellOrder = sellOrders[sellIndex];
 
-                for (const sellOrder of sellOrders) {
-                    if (sellOrder.quantity <= 0) continue;
+                if (buyOrder.quantity <= 0) {
+                    buyIndex += 1;
+                    continue;
+                }
+                if (sellOrder.quantity <= 0) {
+                    sellIndex += 1;
+                    continue;
+                }
 
-                    // Check if prices match (buyer's price >= seller's price)
-                    if (buyOrder.price >= sellOrder.price) {
-                        const matchQuantity = Math.min(buyOrder.quantity, sellOrder.quantity);
-                        const tradePrice = sellOrder.price; // Trade at seller's price (earlier order gets better deal)
+                if (buyOrder.price < sellOrder.price) {
+                    break;
+                }
 
-                        const trade = await this.executeTrade(
-                            buyOrder,
-                            sellOrder,
-                            matchQuantity,
-                            tradePrice
-                        );
+                const matchQuantity = Math.min(buyOrder.quantity, sellOrder.quantity);
+                const tradePrice = sellOrder.price;
 
-                        if (trade) {
-                            trades.push(trade);
-                            console.log(
-                                `[Matching Engine] Executed trade: BUY order ${buyOrder._id} matched SELL order ${sellOrder._id} qty=${matchQuantity} price=${tradePrice}`
-                            );
-                        }
-                    }
+                const trade = await this.executeTrade(
+                    buyOrder,
+                    sellOrder,
+                    matchQuantity,
+                    tradePrice
+                );
+
+                if (trade) {
+                    trades.push(trade);
+                    console.log(
+                        `[Matching Engine] Executed trade: BUY order ${buyOrder._id} matched SELL order ${sellOrder._id} qty=${matchQuantity} price=${tradePrice}`
+                    );
+                }
+
+                if (buyOrder.quantity === 0) {
+                    buyIndex += 1;
+                }
+                if (sellOrder.quantity === 0) {
+                    sellIndex += 1;
                 }
             }
 
@@ -80,93 +89,88 @@ class OrderMatchingEngine {
             const sellerId = sellOrder.userId?._id ?? sellOrder.userId;
             const stockId = buyOrder.stockId?._id ?? buyOrder.stockId;
 
-            // Get buyer and seller users
-            const buyer = await User.findById(buyerId);
-            const seller = await User.findById(sellerId);
+            const [buyer, seller] = await Promise.all([
+                User.findById(buyerId),
+                User.findById(sellerId),
+            ]);
 
             if (!buyer || !seller) {
                 throw new Error("Buyer or seller user not found");
             }
 
-            // Check buyer has sufficient balance
-            if (buyer.walletBalance < totalCost) {
-                return null; // Cannot execute, insufficient funds
-            }
-
-            // Get or create portfolio items
-            let buyerPortfolio = await Portfolio.findOne({
-                userId: buyerId,
-                stockId,
-            });
-
-            let sellerPortfolio = await Portfolio.findOne({
-                userId: sellerId,
-                stockId,
-            });
+            const [buyerPortfolio, sellerPortfolio] = await Promise.all([
+                Portfolio.findOne({ userId: buyerId, stockId }),
+                Portfolio.findOne({ userId: sellerId, stockId }),
+            ]);
 
             if (!sellerPortfolio || sellerPortfolio.quantity < quantity) {
-                return null; // Seller doesn't have enough stock
+                return null;
             }
 
-            // Update buyer portfolio
+            if (buyer.walletBalance < totalCost) {
+                return null;
+            }
+
+            const saveOperations = [];
+
             if (buyerPortfolio) {
                 const newQuantity = buyerPortfolio.quantity + quantity;
-                const totalCostBasis =
-                    buyerPortfolio.avgBuyPrice * buyerPortfolio.quantity + price * quantity;
+                const totalCostBasis = buyerPortfolio.avgBuyPrice * buyerPortfolio.quantity + price * quantity;
                 buyerPortfolio.avgBuyPrice = totalCostBasis / newQuantity;
                 buyerPortfolio.quantity = newQuantity;
-                await buyerPortfolio.save();
+                saveOperations.push(buyerPortfolio.save());
             } else {
-                buyerPortfolio = await Portfolio.create({
+                const newPortfolio = await Portfolio.create({
                     userId: buyerId,
                     stockId,
                     quantity,
                     avgBuyPrice: price,
                 });
-                await User.findByIdAndUpdate(buyerId, {
-                    $push: { portfolio: buyerPortfolio._id },
-                });
+                saveOperations.push(
+                    User.findByIdAndUpdate(buyerId, {
+                        $push: { portfolio: newPortfolio._id },
+                    })
+                );
             }
 
-            // Update seller portfolio
-            sellerPortfolio.quantity -= quantity;
             if (sellerPortfolio.quantity <= 0) {
-                await Portfolio.findByIdAndDelete(sellerPortfolio._id);
-                await User.findByIdAndUpdate(sellerId, {
-                    $pull: { portfolio: sellerPortfolio._id },
-                });
+                saveOperations.push(Portfolio.findByIdAndDelete(sellerPortfolio._id));
+                saveOperations.push(
+                    User.findByIdAndUpdate(sellerId, {
+                        $pull: { portfolio: sellerPortfolio._id },
+                    })
+                );
             } else {
-                await sellerPortfolio.save();
+                sellerPortfolio.quantity -= quantity;
+                saveOperations.push(sellerPortfolio.save());
             }
 
-            // Update wallet balances
             buyer.walletBalance -= totalCost;
             seller.walletBalance += totalCost;
-            await buyer.save();
-            await seller.save();
+            saveOperations.push(buyer.save(), seller.save());
 
-            // Create transaction records
-            const transaction = await Transaction.create({
-                buyerId: buyerId,
-                sellerId: sellerId,
-                stockId: stockId,
-                quantity,
-                price,
-                totalAmount: totalCost,
-            });
-
-            // Update order quantities
             buyOrder.quantity -= quantity;
             if (buyOrder.quantity === 0) {
                 buyOrder.status = "COMPLETED";
             }
-            await buyOrder.save();
+            saveOperations.push(buyOrder.save());
 
             sellOrder.quantity -= quantity;
             if (sellOrder.quantity === 0) {
                 sellOrder.status = "COMPLETED";
             }
-            await sellOrder.save();
+            saveOperations.push(sellOrder.save());
+
+            const transaction = await Transaction.create({
+                buyerId,
+                sellerId,
+                stockId,
+                quantity,
+                price,
+                totalAmount: totalCost,
+            });
+
+            await Promise.all(saveOperations);
 
             return {
                 buyOrderId: buyOrder._id,

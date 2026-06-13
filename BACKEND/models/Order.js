@@ -39,5 +39,7 @@ const orderSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+orderSchema.index({ stockId: 1, status: 1, orderType: 1 });
+
 const Order = mongoose.model("Order", orderSchema);
 export default Order;

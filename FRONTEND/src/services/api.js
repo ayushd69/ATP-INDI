@@ -66,6 +66,7 @@ export const orders = {
 
 export const transactions = {
   list: () => request("/api/transactions"),
+  byUser: (userId) => request(`/api/transactions?userId=${userId}`),
 };
 
 export const users = {

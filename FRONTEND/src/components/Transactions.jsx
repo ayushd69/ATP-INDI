@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { orders } from "../services/api.js";
+import { transactions } from "../services/api.js";
 import { getOrders } from "./sampleStockData.js";
 import { formatINR, toINR } from "../utils/currency.js";
 
@@ -16,132 +16,118 @@ export default function Transactions() {
         const storedUser = localStorage.getItem("investpro-user");
         const userId = storedUser ? JSON.parse(storedUser)._id : null;
 
-        // Fetch backend transactions for current user only
-        if (userId) {
-            orders
-                .byUser(userId)
-                .then((data) => {
-                    if (!active) return;
-                    setItems(data);
-                })
-                .catch((err) => {
-                    if (!active) return;
-                    setError(err.message || "Failed to load transactions");
-                });
-        } else {
-            orders
-                .list()
-                .then((data) => {
-                    if (!active) return;
-                    setItems(data);
-                })
-                .catch((err) => {
-                    if (!active) return;
-                    setError(err.message || "Failed to load transactions");
-                });
-        }
-            .catch ((err) => {
-            if (!active) return;
-            setError(err.message || "Failed to load transactions");
-        })
-        .finally(() => {
-            if (!active) return;
-            if (userId) {
-                setLocalOrders(getOrders(userId));
+        const fetchTransactions = async () => {
+            try {
+                if (!userId) {
+                    throw new Error("User not authenticated");
+                }
+                const data = await transactions.byUser(userId);
+                if (!active) return;
+                setItems(data);
+            } catch (err) {
+                if (!active) return;
+                setError(err.message || "Failed to load transactions");
+            } finally {
+                if (!active) return;
+                if (userId) {
+                    setLocalOrders(getOrders(userId));
+                }
+                setLoading(false);
             }
-            setLoading(false);
-        });
+        };
 
-    return () => {
-        active = false;
-    };
-}, []);
+        fetchTransactions();
 
-if (loading) {
-    return <div className="p-6 text-slate-300">Loading transactions...</div>;
-}
+        return () => {
+            active = false;
+        };
+    }, []);
 
-if (error) {
-    return <div className="p-6 text-rose-300">{error}</div>;
-}
+    if (loading) {
+        return <div className="p-6 text-slate-300">Loading transactions...</div>;
+    }
 
-const allTransactions = [
-    ...items.map(t => ({
-        ...t,
-        source: "backend",
-        symbol: t.stockId?.symbol,
-        status: t.status || t.orderStatus || "PENDING"
-    })),
-    ...localOrders.map(o => ({
-        ...o,
-        source: "local",
-        symbol: o.stock?.symbol,
-        _id: o.id,
-        status: o.status || "PENDING"
-    }))
-];
+    if (error) {
+        return <div className="p-6 text-rose-300">{error}</div>;
+    }
 
-return (
-    <section className="space-y-4 p-6">
-        <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-slate-100">Transactions & Orders</h2>
-            {allTransactions.length === 0 && (
-                <div className="rounded-2xl bg-slate-900 p-4 text-sm text-slate-300">
-                    <p>No transactions yet. Start trading to see your orders here!</p>
-                </div>
-            )}
-            {allTransactions.length > 0 && (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
-                        <thead>
-                            <tr>
-                                <th className="px-3 py-3">Stock</th>
-                                <th className="px-3 py-3">Type</th>
-                                <th className="px-3 py-3">Quantity</th>
-                                <th className="px-3 py-3">Price</th>
-                                <th className="px-3 py-3">Total</th>
-                                <th className="px-3 py-3">Status</th>
-                                <th className="px-3 py-3">Date</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {allTransactions.map((item) => (
-                                <tr key={item._id} className={`hover:bg-slate-900/50 ${item.source === "local" ? "bg-slate-900/30" : ""}`}>
-                                    <td className="px-3 py-3">{item.symbol || "Unknown"}</td>
-                                    <td className="px-3 py-3">
-                                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.orderType === "BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>
-                                            {item.orderType || "BUY"}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-3">{item.quantity}</td>
-                                    <td className="px-3 py-3">{formatINR(item.price)}</td>
-                                    <td className="px-3 py-3 font-semibold">{formatINR(item.price * item.quantity)}</td>
-                                    <td className="px-3 py-3">
-                                        {(() => {
-                                            const statusLabel = item.status || item.orderStatus || "PENDING";
-                                            const statusClass = statusLabel === "COMPLETED"
-                                                ? "bg-emerald-500/20 text-emerald-300"
-                                                : statusLabel === "CANCELLED"
-                                                    ? "bg-rose-500/20 text-rose-300"
-                                                    : "bg-yellow-500/20 text-yellow-300";
+    const allTransactions = [
+        ...items.map(t => ({
+            ...t,
+            source: "backend",
+            symbol: t.stockId?.symbol,
+            status: t.status || t.orderStatus || "PENDING"
+        })),
+        ...localOrders.map(o => ({
+            ...o,
+            source: "local",
+            symbol: o.stock?.symbol,
+            _id: o.id,
+            status: o.status || "PENDING"
+        }))
+    ];
 
-                                            return (
-                                                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass}`}>
-                                                    {statusLabel}
-                                                </span>
-                                            );
-                                        })()}
-                                    </td>
-                                    <td className="px-3 py-3 text-xs text-slate-400">
-                                        {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : new Date(item.createdAt).toLocaleDateString()}
-                                    </td>
+    return (
+        <section className="space-y-4 p-6">
+            <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-slate-100">Transactions & Orders</h2>
+                {allTransactions.length === 0 && (
+                    <div className="rounded-2xl bg-slate-900 p-4 text-sm text-slate-300">
+                        <p>No transactions yet. Start trading to see your orders here!</p>
+                    </div>
+                )}
+                {allTransactions.length > 0 && (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+                            <thead>
+                                <tr>
+                                    <th className="px-3 py-3">Stock</th>
+                                    <th className="px-3 py-3">Type</th>
+                                    <th className="px-3 py-3">Quantity</th>
+                                    <th className="px-3 py-3">Price</th>
+                                    <th className="px-3 py-3">Total</th>
+                                    <th className="px-3 py-3">Status</th>
+                                    <th className="px-3 py-3">Date</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
-    </section>
-);
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {allTransactions.map((item) => (
+                                    <tr key={item._id} className={`hover:bg-slate-900/50 ${item.source === "local" ? "bg-slate-900/30" : ""}`}>
+                                        <td className="px-3 py-3">{item.symbol || "Unknown"}</td>
+                                        <td className="px-3 py-3">
+                                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.orderType === "BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>
+                                                {item.orderType || "BUY"}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-3">{item.quantity}</td>
+                                        <td className="px-3 py-3">{formatINR(item.price)}</td>
+                                        <td className="px-3 py-3 font-semibold">{formatINR(item.price * item.quantity)}</td>
+                                        <td className="px-3 py-3">
+                                            {(() => {
+                                                const statusLabel = item.status || item.orderStatus || "PENDING";
+                                                const statusClass = statusLabel === "COMPLETED"
+                                                    ? "bg-emerald-500/20 text-emerald-300"
+                                                    : statusLabel === "CANCELLED"
+                                                        ? "bg-rose-500/20 text-rose-300"
+                                                        : "bg-yellow-500/20 text-yellow-300";
+
+                                                return (
+                                                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass}`}>
+                                                        {statusLabel}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
+                                        <td className="px-3 py-3 text-xs text-slate-400">
+                                            {item.purchasedAt ? new Date(item.purchasedAt).toLocaleDateString() : new Date(item.createdAt).toLocaleDateString()}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </section>
+    );
 }

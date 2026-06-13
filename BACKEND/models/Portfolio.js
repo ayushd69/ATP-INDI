@@ -25,5 +25,7 @@ const portfolioSchema = new mongoose.Schema({
     timestamps: true,
 });
 
+portfolioSchema.index({ userId: 1, stockId: 1 });
+
 const Portfolio = mongoose.model("Portfolio", portfolioSchema);
 export default Portfolio;

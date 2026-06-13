@@ -93,10 +93,10 @@ mongoose
         await ensureAdmin();
         // Ensure built-in live stocks exist in the database (persist them)
         try {
-            for (const s of stockData) {
-                await Stock.findOneAndUpdate(
-                    { symbol: s.symbol },
-                    {
+            const bulkOps = stockData.map((s) => ({
+                updateOne: {
+                    filter: { symbol: s.symbol },
+                    update: {
                         $set: {
                             companyName: s.companyName,
                             currentPrice: s.currentPrice,
@@ -104,8 +104,12 @@ mongoose
                             volume: s.volume ?? 0,
                         },
                     },
-                    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-                );
+                    upsert: true,
+                },
+            }));
+
+            if (bulkOps.length > 0) {
+                await Stock.bulkWrite(bulkOps, { ordered: false });
             }
             console.log("Live stockData synced to MongoDB.");
         } catch (syncErr) {

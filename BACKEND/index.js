@@ -15,12 +15,15 @@ dotenv.config();
 
 const allowedOrigins = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://atp-indi-frontend.vercel.app"
+    "http://127.0.0.1:5173"
 ];
-if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
-    allowedOrigins.push(process.env.FRONTEND_URL);
-}
+const frontendUrls = process.env.FRONTEND_URL || "http://localhost:5173,https://atp-indi-frontend.vercel.app";
+frontendUrls.split(",").forEach(url => {
+    const trimmed = url.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+        allowedOrigins.push(trimmed);
+    }
+});
 
 const app = express();
 app.use(cors({

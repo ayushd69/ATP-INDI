@@ -10,7 +10,6 @@ import orderApi from "./APIS/orderApi.js";
 import transactionApi from "./APIS/transactionApi.js";
 import watchlistApi from "./APIS/watchlistApi.js";
 import adminApi from "./APIS/adminApi.js";
-config();
 const allowedOrigins = [
     process.env.FRONTEND_URL,
     process.env.VITE_API_BASE

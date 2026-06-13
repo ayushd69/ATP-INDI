@@ -59,18 +59,58 @@ orderApp.post("/", async (req, res) => {
             }
         }
 
-        // Create order with PENDING status
+        const isMarketBuy = Boolean(req.body.marketOrder) && orderType === "BUY";
+
+        // Create order record first
         const order = await Order.create({
             userId,
             stockId,
             orderType,
             quantity,
             price,
-            status: "PENDING",
+            marketOrder: isMarketBuy,
+            status: isMarketBuy ? "COMPLETED" : "PENDING",
         });
 
-        // Run matching engine to find and execute matches
-        const matchResult = await OrderMatchingEngine.matchOrders(stockId);
+        let matchResult = { matched: 0, trades: [] };
+        let transaction = null;
+
+        if (isMarketBuy) {
+            // Direct market buy: fill immediately without the matching engine.
+            const buyerPortfolio = await Portfolio.findOne({ userId, stockId });
+            if (buyerPortfolio) {
+                const newQuantity = buyerPortfolio.quantity + quantity;
+                const totalCostBasis = buyerPortfolio.avgBuyPrice * buyerPortfolio.quantity + price * quantity;
+                buyerPortfolio.avgBuyPrice = totalCostBasis / newQuantity;
+                buyerPortfolio.quantity = newQuantity;
+                await buyerPortfolio.save();
+            } else {
+                const newPortfolio = await Portfolio.create({
+                    userId,
+                    stockId,
+                    quantity,
+                    avgBuyPrice: price,
+                });
+                await User.findByIdAndUpdate(userId, {
+                    $push: { portfolio: newPortfolio._id },
+                });
+            }
+
+            user.walletBalance -= totalCost;
+            await user.save();
+
+            transaction = await Transaction.create({
+                buyerId: userId,
+                sellerId: null,
+                stockId,
+                quantity,
+                price,
+                totalAmount: totalCost,
+            });
+        } else {
+            // Run matching engine only for fixed-price or sell orders
+            matchResult = await OrderMatchingEngine.matchOrders(stockId);
+        }
 
         // Refresh order to get updated status
         const updatedOrder = await Order.findById(order._id).populate("userId stockId");
@@ -79,10 +119,12 @@ orderApp.post("/", async (req, res) => {
         res.status(201).json({
             message: "Order placed",
             order: updatedOrder,
+            marketFilled: isMarketBuy,
             matchesFound: matchResult.matched,
             fullyMatched: updatedOrder.status === "COMPLETED",
             orderStatus: updatedOrder.status,
             trades: matchResult.trades || [],
+            transaction: transaction ? transaction : undefined,
             user: updatedUser,
         });
     } catch (error) {

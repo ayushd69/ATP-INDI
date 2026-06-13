@@ -63,6 +63,7 @@ export default function StockList({ userId, user, onUpdateUser, stocks = [], onS
         orderType,
         quantity: qty,
         price: stock.currentPrice,
+        marketOrder: orderType === "BUY",
       });
       if (response.user && onUpdateUser) {
         onUpdateUser(response.user);
@@ -71,7 +72,7 @@ export default function StockList({ userId, user, onUpdateUser, stocks = [], onS
       const isMatched = response.matchesFound > 0;
       const orderStatus = response.orderStatus || (response.fullyMatched ? "COMPLETED" : "PENDING");
       if (orderType === "BUY") {
-        if (orderStatus === "COMPLETED") {
+        if (response.marketFilled || orderStatus === "COMPLETED") {
           setFeedback(`✓ Purchased ${qty} ${stock.symbol} shares at ${formatINR(stock.currentPrice)}`);
         } else if (isMatched) {
           setFeedback(`Partially purchased ${qty} ${stock.symbol} shares. Remaining quantity is pending until a matching sell order is available.`);

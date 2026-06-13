@@ -9,7 +9,7 @@ const transactionSchema = new mongoose.Schema({
     sellerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        required: false,
     },
     stockId: {
         type: mongoose.Schema.Types.ObjectId,

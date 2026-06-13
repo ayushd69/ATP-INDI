@@ -26,6 +26,10 @@ const orderSchema = new mongoose.Schema({
         required: true,
         min: 0,
     },
+    marketOrder: {
+        type: Boolean,
+        default: false,
+    },
     status: {
         type: String,
         enum: ["PENDING", "COMPLETED", "CANCELLED"],

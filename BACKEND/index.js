@@ -13,9 +13,18 @@ import adminApi from "./APIS/adminApi.js";
 
 dotenv.config();
 
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://atp-indi-frontend.vercel.app"
+];
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 const app = express();
 app.use(cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,

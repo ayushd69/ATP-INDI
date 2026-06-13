@@ -14,6 +14,14 @@ dotenv.config();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/ind_pro";
 
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://atp-indi-frontend.vercel.app"
+];
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
 const ensureAdmin = async () => {
     const mail = process.env.ADMIN_EMAIL || "admine@gmail.com";
@@ -33,7 +41,7 @@ const ensureAdmin = async () => {
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
     },
 });

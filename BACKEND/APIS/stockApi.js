@@ -6,6 +6,7 @@ import Transaction from "../models/Transaction.js";
 import Watchlist from "../models/Watchlist.js";
 import User from "../models/User.js";
 import { addStock, removeStock, updateStockInMemory } from "../liveStockData.js";
+import OrderMatchingEngine from "../matchingEngine.js";
 
 const stockApp = express.Router();
 
@@ -32,7 +33,16 @@ stockApp.post("/", async (req, res) => {
     try {
         const stock = await Stock.create(req.body);
         addStock(stock.toObject ? stock.toObject() : stock);
-        res.status(201).json({ message: "Stock created", stock });
+
+        // Trigger order matching for newly added stock
+        const matchResult = await OrderMatchingEngine.matchOrders(stock._id);
+
+        res.status(201).json({
+            message: "Stock created",
+            stock,
+            orderMatches: matchResult.matched,
+            trades: matchResult.trades
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -42,8 +52,19 @@ stockApp.put("/:id", async (req, res) => {
     try {
         const stock = await Stock.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         if (!stock) return res.status(404).json({ message: "Stock not found." });
+
         updateStockInMemory(stock.toObject ? stock.toObject() : stock);
-        res.json({ message: "Stock updated", stock });
+
+        // Trigger order matching when stock price is updated
+        const matchResult = await OrderMatchingEngine.matchOrders(stock._id);
+
+        res.json({
+            message: "Stock updated",
+            stock,
+            orderMatches: matchResult.matched,
+            trades: matchResult.trades,
+            matchError: matchResult.error
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

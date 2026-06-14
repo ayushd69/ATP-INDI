@@ -178,6 +178,7 @@ class OrderMatchingEngine {
     static async fillOrdersAtMarketPrice(stockId, currentPrice) {
         const fills = [];
 
+        // Match BUY orders at market price: price >= currentPrice means the order WILL buy at current price
         const pendingBuyOrders = await Order.find({
             stockId,
             orderType: "BUY",
@@ -185,14 +186,21 @@ class OrderMatchingEngine {
             price: { $gte: currentPrice },
         }).sort({ price: -1, createdAt: 1 });
 
+        console.log(`[Market Fill] Found ${pendingBuyOrders.length} BUY orders for stock ${stockId} at price ${currentPrice}`);
+
         for (const buyOrder of pendingBuyOrders) {
             if (buyOrder.quantity <= 0) continue;
+            console.log(`[Market Fill] Attempting to fill BUY order ${buyOrder._id} - Quantity: ${buyOrder.quantity}, Order Price: ${buyOrder.price}, Market Price: ${currentPrice}`);
             const fill = await this.executeMarketFill(buyOrder, buyOrder.quantity, currentPrice);
             if (fill) {
+                console.log(`[Market Fill] Successfully filled BUY order ${buyOrder._id}`);
                 fills.push(fill);
+            } else {
+                console.log(`[Market Fill] Failed to fill BUY order ${buyOrder._id}`);
             }
         }
 
+        // Match SELL orders at market price: price <= currentPrice means the order WILL sell at current price
         const pendingSellOrders = await Order.find({
             stockId,
             orderType: "SELL",
@@ -200,14 +208,21 @@ class OrderMatchingEngine {
             price: { $lte: currentPrice },
         }).sort({ price: 1, createdAt: 1 });
 
+        console.log(`[Market Fill] Found ${pendingSellOrders.length} SELL orders for stock ${stockId} at price ${currentPrice}`);
+
         for (const sellOrder of pendingSellOrders) {
             if (sellOrder.quantity <= 0) continue;
+            console.log(`[Market Fill] Attempting to fill SELL order ${sellOrder._id} - Quantity: ${sellOrder.quantity}, Order Price: ${sellOrder.price}, Market Price: ${currentPrice}`);
             const fill = await this.executeMarketFill(sellOrder, sellOrder.quantity, currentPrice);
             if (fill) {
+                console.log(`[Market Fill] Successfully filled SELL order ${sellOrder._id}`);
                 fills.push(fill);
+            } else {
+                console.log(`[Market Fill] Failed to fill SELL order ${sellOrder._id}`);
             }
         }
 
+        console.log(`[Market Fill] Completed market fill for stock ${stockId}, total fills: ${fills.length}`);
         return fills;
     }
 

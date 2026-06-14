@@ -115,8 +115,36 @@ orderApp.post("/", async (req, res) => {
                 totalAmount: totalCost,
             });
         } else {
-            // Run matching engine only for fixed-price or sell orders
-            matchResult = await OrderMatchingEngine.matchOrders(stockId);
+            // For limit orders, immediately trigger order matching to check if they can be filled
+            // This ensures that if current price is favorable, the order gets completed right away
+            console.log(`[Order API] Creating limit order for stock ${stock.symbol} at ${pricePerShare}, current price: ${stock.currentPrice}`);
+
+            // Check if this BUY order can be filled immediately at current price
+            if (orderType === "BUY" && pricePerShare >= stock.currentPrice) {
+                console.log(`[Order API] BUY order price (${pricePerShare}) >= current price (${stock.currentPrice}), attempting immediate fill`);
+                const immediateMarketFill = await OrderMatchingEngine.executeMarketFill(order, qty, stock.currentPrice);
+                if (immediateMarketFill) {
+                    console.log(`[Order API] BUY order was immediately filled at market price ${stock.currentPrice}`);
+                    matchResult.matched += 1;
+                    matchResult.trades.push(immediateMarketFill);
+                }
+            }
+            // Check if SELL order can be filled immediately
+            else if (orderType === "SELL" && pricePerShare <= stock.currentPrice) {
+                console.log(`[Order API] SELL order price (${pricePerShare}) <= current price (${stock.currentPrice}), attempting immediate fill`);
+                const immediateMarketFill = await OrderMatchingEngine.executeMarketFill(order, qty, stock.currentPrice);
+                if (immediateMarketFill) {
+                    console.log(`[Order API] SELL order was immediately filled at market price ${stock.currentPrice}`);
+                    matchResult.matched += 1;
+                    matchResult.trades.push(immediateMarketFill);
+                }
+            }
+
+            // Then run normal matching engine for order book matching
+            const engineResult = await OrderMatchingEngine.matchOrders(stockId);
+            matchResult.matched += engineResult.matched;
+            matchResult.trades = matchResult.trades.concat(engineResult.trades);
+            matchResult.error = engineResult.error;
         }
 
         // Refresh order to get updated status
@@ -178,6 +206,85 @@ orderApp.post("/match/:stockId", async (req, res) => {
         res.json({
             message: `Matched ${result.matched} trades for stock ${stockId}`,
             ...result,
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Endpoint to view pending orders for debugging
+orderApp.get("/pending/stock/:stockId", async (req, res) => {
+    try {
+        const { stockId } = req.params;
+        const stock = await Stock.findById(stockId);
+        if (!stock) {
+            return res.status(404).json({ message: "Stock not found" });
+        }
+
+        const buyOrders = await Order.find({
+            stockId,
+            orderType: "BUY",
+            status: "PENDING",
+        }).sort({ price: -1, createdAt: 1 });
+
+        const sellOrders = await Order.find({
+            stockId,
+            orderType: "SELL",
+            status: "PENDING",
+        }).sort({ price: 1, createdAt: 1 });
+
+        res.json({
+            stock: {
+                symbol: stock.symbol,
+                currentPrice: stock.currentPrice,
+            },
+            buyOrders: buyOrders.map(o => ({
+                _id: o._id,
+                quantity: o.quantity,
+                price: o.price,
+                status: o.status,
+                createdAt: o.createdAt,
+                canFill: o.price >= stock.currentPrice,
+            })),
+            sellOrders: sellOrders.map(o => ({
+                _id: o._id,
+                quantity: o.quantity,
+                price: o.price,
+                status: o.status,
+                createdAt: o.createdAt,
+                canFill: o.price <= stock.currentPrice,
+            })),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Endpoint to get all pending orders
+orderApp.get("/pending/all", async (req, res) => {
+    try {
+        const orders = await Order.find({
+            status: "PENDING"
+        }).populate("stockId").sort({ createdAt: -1 });
+
+        const grouped = orders.reduce((acc, order) => {
+            const symbol = order.stockId?.symbol || "UNKNOWN";
+            if (!acc[symbol]) acc[symbol] = { BUY: [], SELL: [] };
+            acc[symbol][order.orderType].push({
+                _id: order._id,
+                quantity: order.quantity,
+                price: order.price,
+                currentPrice: order.stockId?.currentPrice,
+                canFill: order.orderType === "BUY"
+                    ? order.price >= (order.stockId?.currentPrice || 0)
+                    : order.price <= (order.stockId?.currentPrice || 0),
+            });
+            return acc;
+        }, {});
+
+        res.json({
+            totalPending: orders.length,
+            grouped,
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

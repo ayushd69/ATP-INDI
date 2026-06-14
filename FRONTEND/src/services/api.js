@@ -1,9 +1,16 @@
 const runtimeBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
 const rawBaseUrl = import.meta.env.VITE_API_BASE || "";
+
+// For local development, always prefer localhost:5000
+const isDevelopment = !rawBaseUrl || rawBaseUrl.includes("localhost") || rawBaseUrl.includes("127.0.0.1");
 const normalizedBaseUrl = rawBaseUrl
   ? rawBaseUrl.trim().replace(/^(https?:)?\/\//i, (match) => (match.startsWith("http") ? match : "https://"))
   : "";
-const BASE_URL = normalizedBaseUrl || runtimeBaseUrl || "http://localhost:5000";
+
+const BASE_URL =
+  isDevelopment
+    ? "http://localhost:5000"
+    : (normalizedBaseUrl || runtimeBaseUrl || "http://localhost:5000");
 
 async function request(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {

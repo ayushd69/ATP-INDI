@@ -3,32 +3,29 @@ import { Server } from "socket.io";
 import { stockData, updateStockPrices } from "./liveStockData.js";
 import Stock from "./models/Stock.js";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
+import { config } from "./config.js";
 import bcrypt from "bcrypt";
 import app from "./index.js";
 import Admin from "./models/Admin.js";
 import OrderMatchingEngine from "./matchingEngine.js";
 
-dotenv.config();
+const PORT = config.PORT;
+const MONGODB_URI = config.MONGODB_URI;
 
-const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/ind_pro";
-
-const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    process.env.VITE_API_BASE
-];
-const frontendUrls = process.env.FRONTEND_URL || "http://localhost:5173,https://atp-indi-frontend.vercel.app";
-frontendUrls.split(",").forEach(url => {
-    const trimmed = url.trim();
-    if (trimmed && !allowedOrigins.includes(trimmed)) {
-        allowedOrigins.push(trimmed);
-    }
+const allowedOrigins = [];
+[config.FRONTEND_URL, process.env.VITE_API_BASE].forEach((value) => {
+    if (!value) return;
+    value.split(",").forEach((url) => {
+        const trimmed = url.trim();
+        if (trimmed && !allowedOrigins.includes(trimmed)) {
+            allowedOrigins.push(trimmed);
+        }
+    });
 });
 
 const ensureAdmin = async () => {
-    const mail = (process.env.ADMIN_EMAIL || "admine@gmail.com").trim().toLowerCase();
-    const pass = process.env.ADMIN_PASSWORD || "admine123";
+    const mail = (config.ADMIN_EMAIL || "admine@gmail.com").trim().toLowerCase();
+    const pass = config.ADMIN_PASSWORD || "admine123";
 
     const hashed = await bcrypt.hash(pass, 10);
     await Admin.findOneAndUpdate(

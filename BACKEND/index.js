@@ -10,25 +10,54 @@ import orderApi from "./APIS/orderApi.js";
 import transactionApi from "./APIS/transactionApi.js";
 import watchlistApi from "./APIS/watchlistApi.js";
 import adminApi from "./APIS/adminApi.js";
-const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    process.env.VITE_API_BASE
-];
-const frontendUrls = config.FRONTEND_URL;
-frontendUrls.split(",").forEach(url => {
-    const trimmed = url.trim();
-    if (trimmed && !allowedOrigins.includes(trimmed)) {
-        allowedOrigins.push(trimmed);
-    }
-});
+
+const normalizeOrigin = (value) => {
+    if (!value) return null;
+    const trimmed = value.trim().replace(/\/+$/, "");
+    if (!trimmed) return null;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return normalized.toLowerCase();
+};
+
+const parseOrigins = (value) => {
+    if (!value) return [];
+    return value
+        .split(",")
+        .map(normalizeOrigin)
+        .filter(Boolean);
+};
+
+const allowedOrigins = Array.from(
+    new Set([
+        ...parseOrigins(process.env.FRONTEND_URL),
+        ...parseOrigins(process.env.VITE_API_BASE),
+        ...parseOrigins(config.FRONTEND_URL),
+    ])
+);
+
+console.log("Express CORS allowed origins:", allowedOrigins);
 
 const app = express();
-app.use(cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-}));
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) {
+                return callback(null, true);
+            }
+
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            console.warn("Blocked CORS request from origin:", origin);
+            return callback(new Error("Not allowed by CORS"));
+        },
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true,
+        preflightContinue: false,
+    })
+);
 app.use(express.json());
 
 // Ensure database connection before handling requests

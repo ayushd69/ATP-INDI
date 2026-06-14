@@ -14,21 +14,29 @@ const MONGODB_URI = config.MONGODB_URI;
 
 const normalizeOrigin = (value) => {
     if (!value) return null;
-    const trimmed = value.trim();
+    const trimmed = value.trim().replace(/\/+$/, "");
     if (!trimmed) return null;
-    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return normalized.toLowerCase();
 };
 
-const allowedOrigins = [];
-[config.FRONTEND_URL, process.env.VITE_API_BASE].forEach((value) => {
-    if (!value) return;
-    value.split(",").forEach((url) => {
-        const normalized = normalizeOrigin(url);
-        if (normalized && !allowedOrigins.includes(normalized)) {
-            allowedOrigins.push(normalized);
-        }
-    });
-});
+const parseOrigins = (value) => {
+    if (!value) return [];
+    return value
+        .split(",")
+        .map((item) => normalizeOrigin(item))
+        .filter(Boolean);
+};
+
+const allowedOrigins = Array.from(
+    new Set([
+        ...parseOrigins(config.FRONTEND_URL),
+        ...parseOrigins(process.env.FRONTEND_URL),
+        ...parseOrigins(process.env.VITE_API_BASE),
+    ])
+);
+
+console.log("Socket.IO CORS allowed origins:", allowedOrigins);
 
 const ensureAdmin = async () => {
     const mail = (config.ADMIN_EMAIL || "admine@gmail.com").trim().toLowerCase();

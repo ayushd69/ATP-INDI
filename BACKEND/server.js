@@ -121,9 +121,34 @@ mongoose
             console.log(`Server listening on port ${PORT}`);
         });
 
-        setInterval(() => {
+        const syncStockDataToDatabase = async () => {
+            try {
+                const bulkOps = stockData.map((s) => ({
+                    updateOne: {
+                        filter: { symbol: s.symbol },
+                        update: {
+                            $set: {
+                                companyName: s.companyName,
+                                currentPrice: s.currentPrice,
+                                priceChange: s.priceChange ?? 0,
+                                volume: s.volume ?? 0,
+                            },
+                        },
+                        upsert: true,
+                    },
+                }));
+                if (bulkOps.length > 0) {
+                    await Stock.bulkWrite(bulkOps, { ordered: false });
+                }
+            } catch (syncErr) {
+                console.error("Failed to sync live stockData to DB:", syncErr);
+            }
+        };
+
+        setInterval(async () => {
             updateStockPrices(marketState.volatility);
             io.emit("stockUpdate", stockData);
+            await syncStockDataToDatabase();
         }, 3000);
 
         // Run order matching engine every 5 seconds

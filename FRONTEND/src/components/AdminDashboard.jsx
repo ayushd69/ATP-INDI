@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { users, stocks, orders } from "../services/api.js";
+import { users, stocks, transactions } from "../services/api.js";
 import { formatINR } from "../utils/currency.js";
 import io from "socket.io-client";
 
@@ -26,8 +26,48 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
     const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE || "http://localhost:5000";
     const newSocket = io(socketUrl);
     setSocket(newSocket);
-    return () => newSocket.disconnect();
+    return () => {
+      newSocket.disconnect();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStockUpdates = (payload) => {
+      if (!Array.isArray(payload)) return;
+      setAllStocks((currentStocks) => {
+        const nextBySymbol = {};
+        currentStocks.forEach((stock) => {
+          nextBySymbol[stock.symbol] = stock;
+        });
+        payload.forEach((updatedStock) => {
+          const existing = nextBySymbol[updatedStock.symbol];
+          nextBySymbol[updatedStock.symbol] = {
+            ...existing,
+            ...updatedStock,
+          };
+        });
+        return Object.values(nextBySymbol);
+      });
+    };
+
+    const handleMarketState = (state) => {
+      if (!state) return;
+      if (typeof state.active === "boolean") setMarketActive(state.active);
+      if (typeof state.volatility === "number") setVolatility(state.volatility);
+    };
+
+    socket.on("stockData", handleStockUpdates);
+    socket.on("stockUpdate", handleStockUpdates);
+    socket.on("marketState", handleMarketState);
+
+    return () => {
+      socket.off("stockData", handleStockUpdates);
+      socket.off("stockUpdate", handleStockUpdates);
+      socket.off("marketState", handleMarketState);
+    };
+  }, [socket]);
 
   const fetchAllData = async () => {
     try {
@@ -37,7 +77,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
       const [tradersData, stocksData, transactionsData] = await Promise.all([
         users.list().catch(() => []),
         stocks.list().catch(() => []),
-        orders.list().catch(() => []),
+        transactions.list().catch(() => []),
       ]);
       setTraders(tradersData || []);
       setAllStocks(stocksData || []);
@@ -130,7 +170,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
       sharesTraded: totalSharesCount,
       totalTransactions: allTransactions.length,
       averageTradeValue: allTransactions.length > 0
-        ? allTransactions.reduce((sum, t) => sum + (t.totalValue ?? 0), 0) / allTransactions.length
+        ? allTransactions.reduce((sum, t) => sum + (t.totalAmount ?? 0), 0) / allTransactions.length
         : 0,
     };
   }, [traders, allTransactions]);
@@ -149,6 +189,14 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
   }
 
   // ===== RENDER =====
+  const getTransactionType = (tx) => {
+    if (tx.buyerId && !tx.sellerId) return "BUY";
+    if (tx.sellerId && !tx.buyerId) return "SELL";
+    return "TRADE";
+  };
+
+  const getTransactionUserName = (tx) => tx.buyerId?.name || tx.sellerId?.name || "—";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
@@ -403,15 +451,15 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                 <tbody>
                   {allTransactions.slice(0, 10).map((tx, idx) => (
                     <tr key={idx} className="border-b border-slate-800 hover:bg-slate-800/50">
-                      <td className="py-3 px-4 text-slate-300">{tx.userId?.name || "—"}</td>
+                      <td className="py-3 px-4 text-slate-300">{getTransactionUserName(tx)}</td>
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${tx.type === "buy" ? "bg-emerald-900 text-emerald-300" : "bg-red-900 text-red-300"}`}>
-                          {tx.type?.toUpperCase()}
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getTransactionType(tx) === "BUY" ? "bg-emerald-900 text-emerald-300" : "bg-red-900 text-red-300"}`}>
+                          {getTransactionType(tx)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-300">{tx.stockId?.symbol || "—"}</td>
                       <td className="py-3 px-4 text-right text-slate-300">{tx.quantity}</td>
-                      <td className="py-3 px-4 text-right text-white font-semibold">{formatINR(tx.totalValue || 0)}</td>
+                      <td className="py-3 px-4 text-right text-white font-semibold">{formatINR(tx.totalAmount || 0)}</td>
                     </tr>
                   ))}
                 </tbody>

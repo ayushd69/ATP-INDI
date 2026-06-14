@@ -117,6 +117,36 @@ export const addStock = (stock) => {
     });
 };
 
+export const removeStock = (symbol) => {
+    if (!symbol) return;
+    const upperSymbol = symbol.toUpperCase();
+    const index = stockData.findIndex((item) => item.symbol === upperSymbol);
+    if (index !== -1) {
+        stockData.splice(index, 1);
+    }
+};
+
+export const updateStockInMemory = (stock) => {
+    if (!stock || !stock.symbol) return;
+    const upperSymbol = stock.symbol.toUpperCase();
+    const existingIndex = stockData.findIndex((item) => item.symbol === upperSymbol);
+    const nextStock = {
+        ...stock,
+        symbol: upperSymbol,
+        priceChange: stock.priceChange ?? 0,
+        volume: stock.volume ?? 0,
+        currentPrice: stock.currentPrice ?? 0,
+    };
+    if (existingIndex === -1) {
+        stockData.push(nextStock);
+    } else {
+        stockData[existingIndex] = {
+            ...stockData[existingIndex],
+            ...nextStock,
+        };
+    }
+};
+
 export const updateStockPrices = (volatilityPercent = 2) => {
     const volatility = volatilityPercent / 100;
     stockData.forEach((stock) => {

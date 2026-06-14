@@ -84,12 +84,7 @@ npm run dev
 
 The app runs on `http://localhost:5173` by default.
 
-## Running the App
 
-1. Start MongoDB
-2. Start the backend server (`BACKEND/npm start`)
-3. Start the frontend app (`FRONTEND/npm run dev`)
-4. Open the frontend URL in your browser
 
 
 

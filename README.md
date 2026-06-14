@@ -3,8 +3,8 @@
 A full-stack stock trading simulator with live market updates, order matching, portfolio management, and admin controls.
 
 
-## admine mail:admine@gmail.com
-## pass:admine123
+## admin mail:admin@gmail.com
+## pass:admin123
 
 ## Project Overview
 

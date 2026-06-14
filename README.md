@@ -30,11 +30,6 @@ This repository contains two main applications:
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+ installed
-- MongoDB running locally or accessible via a connection string
-
 ### Backend Setup
 
 1. Open a terminal in `BACKEND/`

@@ -12,13 +12,20 @@ import OrderMatchingEngine from "./matchingEngine.js";
 const PORT = config.PORT;
 const MONGODB_URI = config.MONGODB_URI;
 
+const normalizeOrigin = (value) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
 const allowedOrigins = [];
 [config.FRONTEND_URL, process.env.VITE_API_BASE].forEach((value) => {
     if (!value) return;
     value.split(",").forEach((url) => {
-        const trimmed = url.trim();
-        if (trimmed && !allowedOrigins.includes(trimmed)) {
-            allowedOrigins.push(trimmed);
+        const normalized = normalizeOrigin(url);
+        if (normalized && !allowedOrigins.includes(normalized)) {
+            allowedOrigins.push(normalized);
         }
     });
 });

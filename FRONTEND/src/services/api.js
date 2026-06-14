@@ -1,5 +1,9 @@
 const runtimeBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
-const BASE_URL = import.meta.env.VITE_API_BASE || runtimeBaseUrl || "http://localhost:5000";
+const rawBaseUrl = import.meta.env.VITE_API_BASE || "";
+const normalizedBaseUrl = rawBaseUrl
+  ? rawBaseUrl.trim().replace(/^(https?:)?\/\//i, (match) => (match.startsWith("http") ? match : "https://"))
+  : "";
+const BASE_URL = normalizedBaseUrl || runtimeBaseUrl || "http://localhost:5000";
 
 async function request(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {

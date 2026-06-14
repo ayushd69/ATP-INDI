@@ -14,8 +14,8 @@ let marketState = {
 
 adminApp.post("/register", async (req, res) => {
     try {
-        const mail = req.body.mail?.trim().toLowerCase();
-        const pass = req.body.pass;
+        const mail = (req.body.mail ?? req.body.email)?.trim?.().toLowerCase();
+        const pass = req.body.pass ?? req.body.password;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }

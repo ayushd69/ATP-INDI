@@ -12,10 +12,23 @@ let marketState = {
     lastUpdate: new Date(),
 };
 
+const getBody = (req) => req.body || {};
+
+const createAdmin = async (mail, pass) => {
+    const hashed = await bcrypt.hash(pass, 10);
+    const admin = await Admin.findOneAndUpdate(
+        { mail },
+        { mail, pass: hashed },
+        { upsert: true, setDefaultsOnInsert: true, new: true }
+    );
+    return admin;
+};
+
 adminApp.post("/register", async (req, res) => {
     try {
-        const mail = (req.body.mail ?? req.body.email)?.trim?.().toLowerCase();
-        const pass = req.body.pass ?? req.body.password;
+        const body = getBody(req);
+        const mail = (body.mail ?? body.email)?.trim?.().toLowerCase();
+        const pass = body.pass ?? body.password;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }
@@ -25,8 +38,7 @@ adminApp.post("/register", async (req, res) => {
             return res.status(409).json({ message: "Admin already exists." });
         }
 
-        const hashed = await bcrypt.hash(pass, 10);
-        const admin = await Admin.create({ mail, pass: hashed });
+        const admin = await createAdmin(mail, pass);
         const result = admin.toObject();
         delete result.pass;
         result.isAdmin = true;
@@ -39,21 +51,19 @@ adminApp.post("/register", async (req, res) => {
 
 adminApp.post("/login", async (req, res) => {
     try {
-        // Accept either `mail`/`pass` (frontend) or `email`/`password`
-        const mail = (req.body.mail ?? req.body.email)?.trim?.().toLowerCase();
-        const pass = req.body.pass ?? req.body.password;
+        const body = getBody(req);
+        const mail = (body.mail ?? body.email)?.trim?.().toLowerCase();
+        const pass = body.pass ?? body.password;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }
 
         let admin = await Admin.findOne({ mail });
-        // If admin not found, try to auto-seed the default admin for local setups
         if (!admin) {
             const defaultMail = (config.ADMIN_EMAIL || "").trim().toLowerCase();
             const defaultPass = config.ADMIN_PASSWORD || "";
             if (defaultMail && mail === defaultMail && defaultPass) {
-                const hashed = await bcrypt.hash(defaultPass, 10);
-                admin = await Admin.create({ mail: defaultMail, pass: hashed });
+                admin = await createAdmin(defaultMail, defaultPass);
                 console.log("Auto-seeded default admin:", defaultMail);
             }
         }

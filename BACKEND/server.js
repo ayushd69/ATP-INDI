@@ -43,6 +43,31 @@ const ensureAdmin = async () => {
     console.log(`Admin account ensured: ${mail}`);
 };
 
+const syncStockDataToDatabase = async () => {
+    try {
+        const bulkOps = stockData.map((s) => ({
+            updateOne: {
+                filter: { symbol: s.symbol },
+                update: {
+                    $set: {
+                        companyName: s.companyName,
+                        currentPrice: s.currentPrice,
+                        priceChange: s.priceChange ?? 0,
+                        volume: s.volume ?? 0,
+                    },
+                },
+                upsert: true,
+            },
+        }));
+
+        if (bulkOps.length > 0) {
+            await Stock.bulkWrite(bulkOps, { ordered: false });
+        }
+    } catch (syncErr) {
+        console.error("Failed to sync live stockData to DB:", syncErr);
+    }
+};
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -77,9 +102,19 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("updatePrices", () => {
+    socket.on("updatePrices", async () => {
         updateStockPrices(marketState.volatility);
         io.emit("stockUpdate", stockData);
+        await syncStockDataToDatabase();
+        try {
+            const results = await OrderMatchingEngine.matchAllPendingOrders();
+            const totalMatches = results.reduce((sum, r) => sum + r.matched, 0);
+            if (totalMatches > 0) {
+                console.log(`[Matching Engine] Matched ${totalMatches} trades after manual price update`);
+            }
+        } catch (error) {
+            console.error("[Matching Engine] Error after manual price update:", error);
+        }
         console.log("Prices manually updated by admin");
     });
 
@@ -120,30 +155,6 @@ mongoose
         server.listen(PORT, () => {
             console.log(`Server listening on port ${PORT}`);
         });
-
-        const syncStockDataToDatabase = async () => {
-            try {
-                const bulkOps = stockData.map((s) => ({
-                    updateOne: {
-                        filter: { symbol: s.symbol },
-                        update: {
-                            $set: {
-                                companyName: s.companyName,
-                                currentPrice: s.currentPrice,
-                                priceChange: s.priceChange ?? 0,
-                                volume: s.volume ?? 0,
-                            },
-                        },
-                        upsert: true,
-                    },
-                }));
-                if (bulkOps.length > 0) {
-                    await Stock.bulkWrite(bulkOps, { ordered: false });
-                }
-            } catch (syncErr) {
-                console.error("Failed to sync live stockData to DB:", syncErr);
-            }
-        };
 
         setInterval(async () => {
             updateStockPrices(marketState.volatility);

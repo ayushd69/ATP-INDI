@@ -1,5 +1,6 @@
 import Order from "./models/Order.js";
 import Portfolio from "./models/Portfolio.js";
+import Stock from "./models/Stock.js";
 import User from "./models/User.js";
 import Transaction from "./models/Transaction.js";
 
@@ -10,6 +11,11 @@ class OrderMatchingEngine {
      */
     static async matchOrders(stockId) {
         try {
+            const stock = await Stock.findById(stockId);
+            if (!stock) {
+                return { matched: 0, trades: [] };
+            }
+
             const buyOrders = await Order.find({
                 stockId,
                 orderType: "BUY",
@@ -21,10 +27,6 @@ class OrderMatchingEngine {
                 orderType: "SELL",
                 status: "PENDING",
             }).sort({ price: 1, createdAt: 1 });
-
-            if (buyOrders.length === 0 || sellOrders.length === 0) {
-                return { matched: 0, trades: [] };
-            }
 
             const trades = [];
             let buyIndex = 0;
@@ -72,11 +74,141 @@ class OrderMatchingEngine {
                 }
             }
 
-            return { matched: trades.length, trades };
+            const marketFills = await this.fillOrdersAtMarketPrice(stockId, stock.currentPrice);
+            return { matched: trades.length + marketFills.length, trades: trades.concat(marketFills) };
         } catch (error) {
             console.error("Matching engine error:", error);
             return { matched: 0, trades: [], error: error.message };
         }
+    }
+
+    static async executeMarketFill(order, quantity, price) {
+        try {
+            const totalCost = price * quantity;
+            const userId = order.userId?._id ?? order.userId;
+            const stockId = order.stockId?._id ?? order.stockId;
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error("Order user not found");
+            }
+
+            const portfolio = await Portfolio.findOne({ userId, stockId });
+            const saveOperations = [];
+
+            if (order.orderType === "BUY") {
+                if (user.walletBalance < totalCost) {
+                    return null;
+                }
+
+                if (portfolio) {
+                    const newQuantity = portfolio.quantity + quantity;
+                    const totalCostBasis = portfolio.avgBuyPrice * portfolio.quantity + price * quantity;
+                    portfolio.avgBuyPrice = totalCostBasis / newQuantity;
+                    portfolio.quantity = newQuantity;
+                    saveOperations.push(portfolio.save());
+                } else {
+                    const newPortfolio = await Portfolio.create({
+                        userId,
+                        stockId,
+                        quantity,
+                        avgBuyPrice: price,
+                    });
+                    saveOperations.push(
+                        User.findByIdAndUpdate(userId, {
+                            $push: { portfolio: newPortfolio._id },
+                        })
+                    );
+                }
+
+                user.walletBalance -= totalCost;
+                saveOperations.push(user.save());
+            } else {
+                if (!portfolio || portfolio.quantity < quantity) {
+                    return null;
+                }
+
+                portfolio.quantity -= quantity;
+                if (portfolio.quantity <= 0) {
+                    saveOperations.push(Portfolio.findByIdAndDelete(portfolio._id));
+                    saveOperations.push(
+                        User.findByIdAndUpdate(userId, {
+                            $pull: { portfolio: portfolio._id },
+                        })
+                    );
+                } else {
+                    saveOperations.push(portfolio.save());
+                }
+
+                user.walletBalance += totalCost;
+                saveOperations.push(user.save());
+            }
+
+            order.quantity -= quantity;
+            if (order.quantity === 0) {
+                order.status = "COMPLETED";
+            }
+            saveOperations.push(order.save());
+
+            const transaction = await Transaction.create({
+                buyerId: order.orderType === "BUY" ? userId : undefined,
+                sellerId: order.orderType === "SELL" ? userId : undefined,
+                stockId,
+                quantity,
+                price,
+                totalAmount: totalCost,
+            });
+
+            await Promise.all(saveOperations);
+
+            return {
+                orderId: order._id,
+                quantity,
+                price,
+                totalCost,
+                transactionId: transaction._id,
+                buyerId: transaction.buyerId,
+                sellerId: transaction.sellerId,
+            };
+        } catch (error) {
+            console.error("Market fill execution error:", error);
+            return null;
+        }
+    }
+
+    static async fillOrdersAtMarketPrice(stockId, currentPrice) {
+        const fills = [];
+
+        const pendingBuyOrders = await Order.find({
+            stockId,
+            orderType: "BUY",
+            status: "PENDING",
+            price: { $gte: currentPrice },
+        }).sort({ price: -1, createdAt: 1 });
+
+        for (const buyOrder of pendingBuyOrders) {
+            if (buyOrder.quantity <= 0) continue;
+            const fill = await this.executeMarketFill(buyOrder, buyOrder.quantity, currentPrice);
+            if (fill) {
+                fills.push(fill);
+            }
+        }
+
+        const pendingSellOrders = await Order.find({
+            stockId,
+            orderType: "SELL",
+            status: "PENDING",
+            price: { $lte: currentPrice },
+        }).sort({ price: 1, createdAt: 1 });
+
+        for (const sellOrder of pendingSellOrders) {
+            if (sellOrder.quantity <= 0) continue;
+            const fill = await this.executeMarketFill(sellOrder, sellOrder.quantity, currentPrice);
+            if (fill) {
+                fills.push(fill);
+            }
+        }
+
+        return fills;
     }
 
     /**

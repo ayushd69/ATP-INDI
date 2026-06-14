@@ -10,6 +10,8 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
   const [allStocks, setAllStocks] = useState([]);
   const [allTransactions, setAllTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [socket, setSocket] = useState(null);
@@ -71,7 +73,11 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
 
   const fetchAllData = async () => {
     try {
-      setLoading(true);
+      if (!hasLoadedOnce) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       setError("");
       setSuccess("");
       const [tradersData, stocksData, transactionsData] = await Promise.all([
@@ -86,6 +92,8 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setHasLoadedOnce(true);
     }
   };
 
@@ -180,7 +188,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
     return allStocks.reduce((sum, s) => sum + (s.priceChange ?? 0), 0) / allStocks.length;
   }, [allStocks]);
 
-  if (loading) {
+  if (loading && !hasLoadedOnce) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-950">
         <div className="text-slate-300">Loading admin dashboard...</div>
@@ -198,7 +206,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
   const getTransactionUserName = (tx) => tx.buyerId?.name || tx.sellerId?.name || "—";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* HEADER */}
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -206,19 +214,24 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
             <h1 className="text-3xl md:text-4xl font-bold text-slate-100">Admin Dashboard</h1>
             <p className="text-slate-400 mt-1">Stock market simulation management</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
             <button
+              type="button"
               onClick={fetchAllData}
               className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition text-sm"
             >
               Refresh
             </button>
             <button
+              type="button"
               onClick={handleResetUsers}
               className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-500 transition text-sm"
             >
               Reset Users
             </button>
+            {refreshing && (
+              <div className="text-sm text-slate-400">Refreshing admin data…</div>
+            )}
           </div>
         </div>
 
@@ -238,6 +251,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
           {["overview", "stocks", "users", "transactions", "market"].map((tab) => (
             <button
               key={tab}
+              type="button"
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${activeTab === tab
                 ? "bg-sky-600 text-white"
@@ -254,25 +268,25 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
           <div className="space-y-6">
             {/* STATS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-2">Total Users</p>
                 <p className="text-3xl font-bold text-sky-400">{analytics.userCount}</p>
                 <p className="text-xs text-slate-500 mt-2">Active traders</p>
               </div>
 
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-2">Wallet Capital</p>
                 <p className="text-2xl font-bold text-emerald-400">{formatINR(analytics.walletCapital)}</p>
                 <p className="text-xs text-slate-500 mt-2">Total user liquidity</p>
               </div>
 
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-2">Holdings Value</p>
                 <p className="text-2xl font-bold text-violet-400">{formatINR(analytics.holdingsValuation)}</p>
                 <p className="text-xs text-slate-500 mt-2">Market-indexed valuation</p>
               </div>
 
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-2">Shares Held</p>
                 <p className="text-3xl font-bold text-amber-400">{analytics.sharesTraded}</p>
                 <p className="text-xs text-slate-500 mt-2">Across portfolios</p>
@@ -281,7 +295,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
 
             {/* MARKET STATS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-4">Market Overview</p>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
@@ -303,7 +317,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm mb-4">Transaction Stats</p>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
@@ -332,6 +346,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
           <div className="space-y-4">
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowStockForm(!showStockForm)}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-500 transition text-sm font-medium"
               >
@@ -389,6 +404,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                     </p>
                   </div>
                   <button
+                    type="button"
                     onClick={() => handleDeleteStock(stock._id)}
                     className="px-3 py-1 bg-red-900 text-red-300 rounded hover:bg-red-800 transition text-xs"
                   >
@@ -422,6 +438,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                   </div>
                   <div className="mt-3 pt-3 border-t border-slate-700 flex justify-end gap-2">
                     <button
+                      type="button"
                       onClick={() => handleDeleteUser(trader._id)}
                       className="px-3 py-1 bg-red-900 text-red-300 rounded hover:bg-red-800 transition text-xs"
                     >
@@ -470,7 +487,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
 
         {activeTab === "market" && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+            <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Market Simulation Controls</h3>
 
               <div className="space-y-4">
@@ -490,7 +507,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                       }}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
                   </label>
                 </div>
 
@@ -517,6 +534,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
                 {/* Update Prices Button */}
                 <div className="pt-4 border-t border-slate-700">
                   <button
+                    type="button"
                     onClick={() => {
                       socket?.emit("updatePrices", {});
                       alert("Stock prices updated and broadcast to all clients");
@@ -529,7 +547,7 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+            <div className="bg-linear-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Market Information</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>

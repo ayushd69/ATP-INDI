@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import Admin from "../models/Admin.js";
+import { config } from "../config.js";
 
 const adminApp = express.Router();
 
@@ -38,13 +39,25 @@ adminApp.post("/register", async (req, res) => {
 
 adminApp.post("/login", async (req, res) => {
     try {
-        const mail = req.body.mail?.trim().toLowerCase();
-        const pass = req.body.pass;
+        // Accept either `mail`/`pass` (frontend) or `email`/`password`
+        const mail = (req.body.mail ?? req.body.email)?.trim?.().toLowerCase();
+        const pass = req.body.pass ?? req.body.password;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }
 
-        const admin = await Admin.findOne({ mail });
+        let admin = await Admin.findOne({ mail });
+        // If admin not found, try to auto-seed the default admin for local setups
+        if (!admin) {
+            const defaultMail = (config.ADMIN_EMAIL || "").trim().toLowerCase();
+            const defaultPass = config.ADMIN_PASSWORD || "";
+            if (defaultMail && mail === defaultMail && defaultPass) {
+                const hashed = await bcrypt.hash(defaultPass, 10);
+                admin = await Admin.create({ mail: defaultMail, pass: hashed });
+                console.log("Auto-seeded default admin:", defaultMail);
+            }
+        }
+
         if (!admin) {
             return res.status(404).json({ message: "Admin not found." });
         }

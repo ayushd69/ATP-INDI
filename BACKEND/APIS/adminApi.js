@@ -13,7 +13,8 @@ let marketState = {
 
 adminApp.post("/register", async (req, res) => {
     try {
-        const { mail, pass } = req.body;
+        const mail = req.body.mail?.trim().toLowerCase();
+        const pass = req.body.pass;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }
@@ -37,7 +38,8 @@ adminApp.post("/register", async (req, res) => {
 
 adminApp.post("/login", async (req, res) => {
     try {
-        const { mail, pass } = req.body;
+        const mail = req.body.mail?.trim().toLowerCase();
+        const pass = req.body.pass;
         if (!mail || !pass) {
             return res.status(400).json({ message: "Mail and pass are required." });
         }

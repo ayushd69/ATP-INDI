@@ -27,18 +27,16 @@ frontendUrls.split(",").forEach(url => {
 });
 
 const ensureAdmin = async () => {
-    const mail = process.env.ADMIN_EMAIL || "admine@gmail.com";
+    const mail = (process.env.ADMIN_EMAIL || "admine@gmail.com").trim().toLowerCase();
     const pass = process.env.ADMIN_PASSWORD || "admine123";
 
-    const existingAdmin = await Admin.findOne({ mail });
-    if (existingAdmin) {
-        console.log(`Admin already exists: ${mail}`);
-        return;
-    }
-
     const hashed = await bcrypt.hash(pass, 10);
-    await Admin.create({ mail, pass: hashed });
-    console.log(`Admin account created: ${mail}`);
+    await Admin.findOneAndUpdate(
+        { mail },
+        { mail, pass: hashed },
+        { upsert: true, setDefaultsOnInsert: true }
+    );
+    console.log(`Admin account ensured: ${mail}`);
 };
 
 const server = http.createServer(app);

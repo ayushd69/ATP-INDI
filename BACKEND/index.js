@@ -56,7 +56,7 @@ const corsOptions = {
 
 const app = express();
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.options("/*", cors(corsOptions)); // Updated to avoid path-to-regexp error
 app.use(express.json());
 
 // Ensure database connection before handling requests

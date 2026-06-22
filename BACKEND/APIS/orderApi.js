@@ -86,8 +86,8 @@ orderApp.post("/", async (req, res) => {
             // Direct market buy: fill immediately without the matching engine.
             const buyerPortfolio = await Portfolio.findOne({ userId, stockId });
             if (buyerPortfolio) {
-                const newQuantity = buyerPortfolio.quantity + quantity;
-                const totalCostBasis = buyerPortfolio.avgBuyPrice * buyerPortfolio.quantity + price * quantity;
+                const newQuantity = buyerPortfolio.quantity + qty;
+                const totalCostBasis = buyerPortfolio.avgBuyPrice * buyerPortfolio.quantity + price * qty;
                 buyerPortfolio.avgBuyPrice = totalCostBasis / newQuantity;
                 buyerPortfolio.quantity = newQuantity;
                 await buyerPortfolio.save();
@@ -95,7 +95,7 @@ orderApp.post("/", async (req, res) => {
                 const newPortfolio = await Portfolio.create({
                     userId,
                     stockId,
-                    quantity,
+                    quantity: qty,
                     avgBuyPrice: price,
                 });
                 await User.findByIdAndUpdate(userId, {
@@ -110,7 +110,7 @@ orderApp.post("/", async (req, res) => {
                 buyerId: userId,
                 sellerId: null,
                 stockId,
-                quantity,
+                quantity: qty,
                 price,
                 totalAmount: totalCost,
             });

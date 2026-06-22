@@ -79,7 +79,7 @@ const syncStockDataToDatabase = async () => {
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: true,
+        origin: allowedOrigins.length > 0 ? allowedOrigins : true,
         methods: ["GET", "POST"],
         allowedHeaders: ["Content-Type", "Authorization"],
         credentials: true,

@@ -39,7 +39,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE || "http://localhost:5000";
+    const socketUrl =
+      import.meta.env.VITE_SOCKET_URL ||
+      import.meta.env.VITE_API_BASE ||
+      (import.meta.env.DEV ? "http://localhost:5000" : window.location.origin);
     const socket = io(socketUrl);
 
     const updateStockState = (payload) => {

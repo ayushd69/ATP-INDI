@@ -25,7 +25,10 @@ export default function AdminDashboard({ stocks: liveStocks = [] }) {
   // ===== INITIALIZE DATA =====
   useEffect(() => {
     fetchAllData();
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE || "http://localhost:5000";
+    const socketUrl =
+      import.meta.env.VITE_SOCKET_URL ||
+      import.meta.env.VITE_API_BASE ||
+      (import.meta.env.DEV ? "http://localhost:5000" : window.location.origin);
     const newSocket = io(socketUrl);
     setSocket(newSocket);
     return () => {

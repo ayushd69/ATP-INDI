@@ -37,17 +37,26 @@ const allowedOrigins = Array.from(
 
 console.log("Express CORS allowed origins:", allowedOrigins);
 
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) {
+            return callback(null, true);
+        }
+        if (allowedOrigins.length === 0 || allowedOrigins.includes(origin.toLowerCase())) {
+            return callback(null, true);
+        }
+        console.warn("Blocked CORS origin:", origin);
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    preflightContinue: false,
+};
+
 const app = express();
-app.use(
-    cors({
-        origin: true,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-        credentials: true,
-        preflightContinue: false,
-    })
-);
-app.options("*", cors());
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
 // Ensure database connection before handling requests
